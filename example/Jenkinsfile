@@ -1,0 +1,72 @@
+def stagesList = [
+    "SubStageA",
+    "SubStageB",
+    "SubStageC"
+    ]
+
+def parallelStagesMap = stagesList.collectEntries {
+    ["${it}" : generateStage(it)]
+}
+
+def generateStage(job) {
+    return {
+        stage("Parallel SubStage: ${job}") {
+            node() {
+                // What the heck is this PATH+ANYSTRING syntax?
+                // ${ANYSTRING}:$PATH is expressed as PATH+ANYSTRING=${ANYSTRING}.
+                // ANYSTRING is just a name to help readability.
+                // Omit ANYSTRING if you think it does not help readability.
+                // Thus, it is equivalent to PATH+=${ANYSTRING}.
+                // https://stackoverflow.com/a/44380495/4763512
+                withEnv([
+                    "PATH+JENKINS_HOME=${JENKINS_HOME}:${PATH}",
+                    "PYTHONPATH=${WORKSPACE}/python"
+                ]) {
+                    // https://jenkins.io/doc/pipeline/steps/workflow-durable-task-step/#sh-shell-script
+                    echo sh(returnStdout: true, script: 'env') // sh 'env'
+
+                    echo "PATH is: $PATH"
+                    echo "PYTHONPATH is: $PYTHONPATH"
+
+                    unstash "file1"
+                    unstash "file2"
+                    unstash "file3"
+                    unstash "file4"
+                }
+            }
+        }
+    }
+}
+
+pipeline {
+    agent any
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '16'))
+        disableConcurrentBuilds()
+        disableResume()
+        parallelsAlwaysFailFast()
+        skipDefaultCheckout()
+        timeout(time: 1, unit: 'DAYS')
+        timestamps()
+    }
+    stages {
+        stage('non-parallel stage') {
+            steps {
+                sh '''#!/usr/bin/env bash
+                touch file{1..4}.txt'''
+                stash includes: 'file1.txt', name: 'file1'
+                stash includes: 'file2.txt', name: 'file2'
+                stash includes: 'file3.txt', name: 'file3'
+                stash includes: 'file4.txt', name: 'file4'
+            }
+        }
+        stage('parallel stage') {
+            steps {
+                script {
+                    parallelStagesMap.failFast = true
+                    parallel parallelStagesMap
+                }
+            }
+        }
+    }
+}

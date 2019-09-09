@@ -1,0 +1,21 @@
+version: '3.7'
+
+services:
+  jenkins:
+    build: #TODO: Once plugin installation can be handled through configuration as code, this can be removed and replaced with 'image'.
+      context: ./jenkins
+    ports:
+      - 4444:8080
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./configuration:/var/configuration
+    secrets:
+      - JENKINS_ADMINISTRATOR_PASSWORD
+    environment:
+      - JENKINS_ADMINISTRATOR_USERNAME=voltron
+      - CASC_JENKINS_CONFIG=/var/configuration/jenkins.yaml
+secrets: # Be careful with newlines in your secrets, make sure to remove them before running docker-compose up.
+  JENKINS_ADMINISTRATOR_PASSWORD:
+    file: jenkins_administrator_password
+volumes:
+  jenkins_home:
